@@ -9,11 +9,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"github.com/sirupsen/logrus"
+	"github.com/therealutkarshpriyadarshi/dag/internal/dag"
+	"github.com/therealutkarshpriyadarshi/dag/internal/executor"
 	"github.com/therealutkarshpriyadarshi/dag/internal/state"
 	"github.com/therealutkarshpriyadarshi/dag/internal/storage"
+	"github.com/therealutkarshpriyadarshi/dag/pkg/api/dto"
+	"github.com/therealutkarshpriyadarshi/dag/pkg/api/handlers"
+	"github.com/therealutkarshpriyadarshi/dag/pkg/api/middleware"
 )
 
-const version = "0.2.0"
+const version = "0.6.0"
 
 func main() {
 	log.Printf("Starting Workflow Orchestrator Server v%s", version)
@@ -82,15 +88,50 @@ func main() {
 	historyPublisher := state.NewHistoryPublisher(db.DB)
 	multiPublisher := state.NewMultiPublisher(redisPublisher, historyPublisher)
 	stateManager := state.NewManager(multiPublisher)
+	stateMachine := state.NewMachine()
 
 	// Initialize repositories
 	dagRepo := storage.NewDAGRepository(db.DB)
 	dagRunRepo := storage.NewDAGRunRepository(db.DB, stateManager)
 	taskInstanceRepo := storage.NewTaskInstanceRepository(db.DB, stateManager)
-	_ = storage.NewTaskLogRepository(db.DB)
+	taskLogRepo := storage.NewTaskLogRepository(db.DB)
+
+	// Initialize DAG engine
+	dagEngine := dag.NewEngine()
+
+	// Initialize executor
+	executorCfg := &executor.ExecutorConfig{
+		WorkerCount:  4,
+		QueueSize:    100,
+		MaxRetries:   3,
+		RetryDelay:   5 * time.Second,
+		TaskTimeout:  30 * time.Minute,
+		ShutdownTimeout: 1 * time.Minute,
+	}
+
+	localExecutor := executor.NewLocalExecutor(
+		taskInstanceRepo,
+		dagRunRepo,
+		stateMachine,
+		executorCfg,
+	)
+
+	// Register task executors
+	localExecutor.RegisterTaskExecutor(executor.NewBashTaskExecutor())
+	localExecutor.RegisterTaskExecutor(executor.NewHTTPTaskExecutor())
+	localExecutor.RegisterTaskExecutor(executor.NewGoFuncTaskExecutor())
+	// Note: DockerTaskExecutor requires Docker client setup
+
+	// Start executor
+	executorCtx := context.Background()
+	if err := localExecutor.Start(executorCtx); err != nil {
+		log.Printf("Warning: Failed to start executor: %v", err)
+	}
+	defer localExecutor.Stop(executorCtx)
 
 	log.Printf("Database initialized successfully")
 	log.Printf("Repositories initialized: DAG, DAGRun, TaskInstance, TaskLog")
+	log.Printf("Executor started with %d workers", executorCfg.WorkerCount)
 
 	// Set Gin mode based on environment
 	if env == "production" {
@@ -99,8 +140,28 @@ func main() {
 		gin.SetMode(gin.DebugMode)
 	}
 
+	// Create logger
+	logger := logrus.New()
+	logger.SetFormatter(&logrus.JSONFormatter{})
+	if env == "development" {
+		logger.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.SetLevel(logrus.InfoLevel)
+	}
+
 	// Create Gin router
-	router := gin.Default()
+	router := gin.New()
+
+	// Apply global middleware
+	router.Use(gin.Recovery())
+	router.Use(middleware.ErrorHandler())
+	router.Use(middleware.Logger(logger))
+	router.Use(middleware.CORS())
+
+	// Initialize handlers
+	dagHandler := handlers.NewDAGHandler(dagRepo, dagEngine)
+	dagRunHandler := handlers.NewDAGRunHandler(dagRepo, dagRunRepo, taskInstanceRepo, localExecutor)
+	taskInstanceHandler := handlers.NewTaskInstanceHandler(taskInstanceRepo, taskLogRepo)
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
@@ -117,90 +178,94 @@ func main() {
 		}
 
 		status := "healthy"
-		if !dbHealthy || !redisHealthy {
-			status = "degraded"
+		services := map[string]string{
+			"database": "healthy",
+			"redis":    "healthy",
+			"executor": "healthy",
 		}
 
-		c.JSON(200, gin.H{
-			"status":   status,
-			"version":  version,
-			"service":  "workflow-server",
-			"database": dbHealthy,
-			"redis":    redisHealthy,
+		if !dbHealthy {
+			status = "degraded"
+			services["database"] = "unhealthy"
+		}
+		if !redisHealthy {
+			status = "degraded"
+			services["redis"] = "unhealthy"
+		}
+		if !localExecutor.GetStatus().Running {
+			status = "degraded"
+			services["executor"] = "stopped"
+		}
+
+		c.JSON(200, dto.HealthResponse{
+			Status:   status,
+			Services: services,
 		})
 	})
 
-	// API v1 routes
-	v1 := router.Group("/api/v1")
+	// JWT configuration
+	jwtConfig := middleware.DefaultJWTConfig()
+
+	// Public API routes (no authentication required)
+	public := router.Group("/api/v1")
 	{
-		v1.GET("/status", func(c *gin.Context) {
+		public.GET("/status", func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"status":  "ok",
 				"version": version,
-				"phase":   "2 - Database Layer & State Management",
+				"phase":   "6 - REST API",
 			})
 		})
 
-		// DAG routes
-		v1.GET("/dags", func(c *gin.Context) {
-			dags, err := dagRepo.List(c.Request.Context(), storage.DAGFilters{Limit: 100})
-			if err != nil {
-				c.JSON(500, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(200, gin.H{"dags": dags, "count": len(dags)})
+		// Health endpoint (public)
+		public.GET("/health", func(c *gin.Context) {
+			c.Redirect(301, "/health")
 		})
+	}
 
-		v1.GET("/dags/:id", func(c *gin.Context) {
-			dag, err := dagRepo.Get(c.Request.Context(), c.Param("id"))
-			if err != nil {
-				c.JSON(404, gin.H{"error": "DAG not found"})
-				return
-			}
-			c.JSON(200, dag)
-		})
+	// Protected API routes (authentication required)
+	// For now, we'll make all endpoints public to enable easy testing
+	// In production, you would use: api := router.Group("/api/v1", middleware.JWTAuth(jwtConfig))
+	api := router.Group("/api/v1")
+	api.Use(middleware.OptionalAuth(jwtConfig)) // Use optional auth for development
+	api.Use(middleware.GlobalRateLimiter.RateLimit())
 
-		// DAG Run routes
-		v1.GET("/dag-runs", func(c *gin.Context) {
-			runs, err := dagRunRepo.List(c.Request.Context(), storage.DAGRunFilters{Limit: 100})
-			if err != nil {
-				c.JSON(500, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(200, gin.H{"dag_runs": runs, "count": len(runs)})
-		})
+	// DAG routes
+	dags := api.Group("/dags")
+	{
+		dags.POST("", dagHandler.CreateDAG)
+		dags.GET("", dagHandler.ListDAGs)
+		dags.GET("/:id", dagHandler.GetDAG)
+		dags.PATCH("/:id", dagHandler.UpdateDAG)
+		dags.DELETE("/:id", dagHandler.DeleteDAG)
+		dags.POST("/:id/pause", dagHandler.PauseDAG)
+		dags.POST("/:id/unpause", dagHandler.UnpauseDAG)
+		dags.POST("/:id/trigger", dagRunHandler.TriggerDAG)
+	}
 
-		v1.GET("/dag-runs/:id", func(c *gin.Context) {
-			run, err := dagRunRepo.Get(c.Request.Context(), c.Param("id"))
-			if err != nil {
-				c.JSON(404, gin.H{"error": "DAG run not found"})
-				return
-			}
-			c.JSON(200, run)
-		})
+	// DAG Run routes
+	dagRuns := api.Group("/dag-runs")
+	{
+		dagRuns.GET("", dagRunHandler.ListDAGRuns)
+		dagRuns.GET("/:id", dagRunHandler.GetDAGRun)
+		dagRuns.POST("/:id/cancel", dagRunHandler.CancelDAGRun)
+		dagRuns.GET("/:id/tasks", taskInstanceHandler.ListDAGRunTasks)
+	}
 
-		// Task Instance routes
-		v1.GET("/task-instances", func(c *gin.Context) {
-			instances, err := taskInstanceRepo.List(c.Request.Context(), storage.TaskInstanceFilters{Limit: 100})
-			if err != nil {
-				c.JSON(500, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(200, gin.H{"task_instances": instances, "count": len(instances)})
-		})
-
-		v1.GET("/task-instances/:id", func(c *gin.Context) {
-			instance, err := taskInstanceRepo.Get(c.Request.Context(), c.Param("id"))
-			if err != nil {
-				c.JSON(404, gin.H{"error": "Task instance not found"})
-				return
-			}
-			c.JSON(200, instance)
-		})
+	// Task Instance routes
+	taskInstances := api.Group("/task-instances")
+	{
+		taskInstances.GET("", taskInstanceHandler.ListTaskInstances)
+		taskInstances.GET("/:id", taskInstanceHandler.GetTaskInstance)
+		taskInstances.GET("/:id/logs", taskInstanceHandler.GetTaskInstanceLogs)
+		taskInstances.POST("/:id/retry", taskInstanceHandler.RetryTaskInstance)
 	}
 
 	// Start server
 	log.Printf("Server listening on port %s in %s mode", port, env)
+	log.Printf("Phase 6: REST API with authentication, rate limiting, and validation")
+	log.Printf("API Documentation: http://localhost:%s/api/v1/status", port)
+
 	if err := router.Run(fmt.Sprintf(":%s", port)); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

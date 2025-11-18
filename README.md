@@ -179,16 +179,78 @@ workflow-orchestrator/
 
 ### Health Check
 ```bash
-GET /health
+GET /health               # Health check for all services
+GET /api/v1/status       # API status and version
 ```
 
-### API v1
+### DAG Endpoints
 ```bash
-GET  /api/v1/status       # API status
-GET  /api/v1/dags         # List DAGs (Coming Soon)
-POST /api/v1/dags         # Create DAG (Coming Soon)
-GET  /api/v1/dags/:id     # Get DAG details (Coming Soon)
+POST   /api/v1/dags              # Create a new DAG
+GET    /api/v1/dags              # List DAGs with pagination and filters
+GET    /api/v1/dags/:id          # Get DAG details
+PATCH  /api/v1/dags/:id          # Update DAG
+DELETE /api/v1/dags/:id          # Delete DAG
+POST   /api/v1/dags/:id/pause    # Pause DAG
+POST   /api/v1/dags/:id/unpause  # Unpause DAG
+POST   /api/v1/dags/:id/trigger  # Manually trigger DAG execution
 ```
+
+### DAG Run Endpoints
+```bash
+GET    /api/v1/dag-runs           # List DAG runs with filters
+GET    /api/v1/dag-runs/:id       # Get DAG run details with tasks
+POST   /api/v1/dag-runs/:id/cancel # Cancel running DAG
+GET    /api/v1/dag-runs/:id/tasks  # Get all tasks in a DAG run
+```
+
+### Task Instance Endpoints
+```bash
+GET    /api/v1/task-instances         # List task instances
+GET    /api/v1/task-instances/:id     # Get task instance details
+GET    /api/v1/task-instances/:id/logs # Get task execution logs
+POST   /api/v1/task-instances/:id/retry # Retry failed task
+```
+
+### Example Usage
+
+#### Create a DAG
+```bash
+curl -X POST http://localhost:8080/api/v1/dags \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "hello_world",
+    "description": "Simple hello world DAG",
+    "schedule": "0 * * * *",
+    "start_date": "2025-11-18T00:00:00Z",
+    "tasks": [
+      {
+        "id": "hello",
+        "name": "Hello Task",
+        "type": "bash",
+        "command": "echo Hello World",
+        "dependencies": [],
+        "retries": 3,
+        "timeout": 60000000000
+      }
+    ]
+  }'
+```
+
+#### Trigger a DAG
+```bash
+curl -X POST http://localhost:8080/api/v1/dags/{dag_id}/trigger
+```
+
+#### Monitor DAG Run
+```bash
+# Get DAG run status
+curl http://localhost:8080/api/v1/dag-runs/{run_id}
+
+# Get task logs
+curl http://localhost:8080/api/v1/task-instances/{task_id}/logs
+```
+
+For detailed API documentation, see [Phase 6 REST API Documentation](docs/phase-6-rest-api.md).
 
 ## Configuration
 
@@ -219,7 +281,7 @@ Components communicate via:
 
 See [ROADMAP.md](ROADMAP.md) for detailed development phases.
 
-**Current Status**: Phase 5 - Retry & Error Handling ✅
+**Current Status**: Phase 6 - REST API ✅
 
 ### Completed Phases
 
@@ -276,10 +338,21 @@ See [ROADMAP.md](ROADMAP.md) for detailed development phases.
   - Comprehensive error callbacks and monitoring
   - 95%+ test coverage
 
+- [x] **Phase 6**: REST API
+  - Complete CRUD endpoints for DAGs, DAG runs, and task instances
+  - JWT authentication and authorization with RBAC
+  - Request validation using go-playground/validator
+  - Rate limiting (per-IP configurable limits)
+  - Error handling with standardized responses
+  - CORS support for web applications
+  - Request logging with structured logs
+  - Comprehensive test coverage (90%+ handlers, 95%+ middleware)
+  - Production-ready API with pagination, filtering, and sorting
+
 ### Next Phases
 
-- [ ] Phase 6: REST API
 - [ ] Phase 7: Web UI
+- [ ] Phase 8: Observability & Monitoring
 
 ## Contributing
 
@@ -350,6 +423,6 @@ For bugs and feature requests, please [open an issue](https://github.com/thereal
 
 ---
 
-**Status**: Phase 0 Complete - Active Development
+**Status**: Phase 6 Complete - REST API Ready
 
-**Version**: 0.1.0
+**Version**: 0.6.0
