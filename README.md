@@ -219,7 +219,7 @@ Components communicate via:
 
 See [ROADMAP.md](ROADMAP.md) for detailed development phases.
 
-**Current Status**: Phase 1 - Core DAG Engine ✅
+**Current Status**: Phase 2 - Database Layer & State Management ✅
 
 ### Completed Phases
 
@@ -238,9 +238,17 @@ See [ROADMAP.md](ROADMAP.md) for detailed development phases.
   - Task lineage tracking (upstream/downstream dependencies)
   - 95.7% test coverage
 
+- [x] **Phase 2**: Database Layer & State Management
+  - PostgreSQL schema with migrations (5 tables, 15 indexes)
+  - GORM integration with connection pooling
+  - State machine with 11 valid transition paths
+  - Event publishing (Redis pub/sub + database history)
+  - Repository pattern (DAG, DAGRun, TaskInstance, TaskLog)
+  - Optimistic locking for concurrent updates
+  - 95%+ test coverage
+
 ### Next Phases
 
-- [ ] Phase 2: Database Layer & State Management
 - [ ] Phase 3: Scheduler
 - [ ] Phase 4: Executor & Worker System
 
