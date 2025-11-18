@@ -1,0 +1,93 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Reports suspicious constructs
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Comprehensive static analysis
+    - unused        # Check for unused constants, variables, functions and types
+    - gofmt         # Check if code is formatted with gofmt
+    - goimports     # Check if imports are formatted with goimports
+    - misspell      # Find commonly misspelled English words
+    - unconvert     # Remove unnecessary type conversions
+    - unparam       # Report unused function parameters
+    - gosec         # Inspect source code for security problems
+    - gocritic      # Comprehensive Go source code linter
+    - revive        # Fast, configurable, extensible, flexible, and beautiful linter for Go
+    - stylecheck    # Replacement for golint
+    - typecheck     # Parse and type-check Go code
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable-all: true
+    disable:
+      - shadow
+
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: github.com/therealutkarshpriyadarshi/dag
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - commentedOutCode
+      - whyNoLint
+
+  revive:
+    severity: warning
+    confidence: 0.8
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: increment-decrement
+      - name: var-naming
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: indent-error-flow
+      - name: superfluous-else
+      - name: unreachable-code
+
+  stylecheck:
+    checks: ["all", "-ST1000", "-ST1003"]
+
+  gosec:
+    excludes:
+      - G404  # Use of weak random number generator
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck
+        - gocritic
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
