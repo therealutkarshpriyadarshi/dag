@@ -47,6 +47,36 @@ func (v *Validator) Validate(dag *models.DAG) error {
 		return err
 	}
 
+	// Check for orphaned tasks
+	if err := v.checkOrphanedTasks(dag); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// checkOrphanedTasks verifies that all tasks are connected in the graph
+// A task is orphaned if it has no dependencies and no tasks depend on it (for multi-task DAGs)
+func (v *Validator) checkOrphanedTasks(dag *models.DAG) error {
+	if len(dag.Tasks) <= 1 {
+		return nil // Single task DAGs are valid
+	}
+
+	// Build reverse dependency map (which tasks depend on this task)
+	dependents := make(map[string][]string)
+	for _, task := range dag.Tasks {
+		for _, depID := range task.Dependencies {
+			dependents[depID] = append(dependents[depID], task.ID)
+		}
+	}
+
+	// Find tasks with no dependencies and no dependents
+	for _, task := range dag.Tasks {
+		if len(task.Dependencies) == 0 && len(dependents[task.ID]) == 0 {
+			return fmt.Errorf("orphaned task detected: %s (no dependencies and no tasks depend on it)", task.ID)
+		}
+	}
+
 	return nil
 }
 

@@ -1,0 +1,103 @@
+{
+  "id": "ml-training-pipeline",
+  "name": "ML Model Training Pipeline",
+  "description": "Machine learning model training and deployment workflow",
+  "schedule": "0 4 * * 0",
+  "start_date": "2024-01-01T00:00:00Z",
+  "tags": ["machine-learning", "production", "training"],
+  "tasks": [
+    {
+      "id": "fetch_training_data",
+      "name": "Fetch Training Data",
+      "type": "python",
+      "command": "python fetch_data.py --dataset training",
+      "retries": 3,
+      "timeout": "1h",
+      "sla": "2h"
+    },
+    {
+      "id": "fetch_validation_data",
+      "name": "Fetch Validation Data",
+      "type": "python",
+      "command": "python fetch_data.py --dataset validation",
+      "retries": 3,
+      "timeout": "30m",
+      "sla": "1h"
+    },
+    {
+      "id": "preprocess_data",
+      "name": "Preprocess Data",
+      "type": "python",
+      "command": "python preprocess.py",
+      "dependencies": ["fetch_training_data", "fetch_validation_data"],
+      "timeout": "45m",
+      "sla": "1h30m"
+    },
+    {
+      "id": "feature_engineering",
+      "name": "Feature Engineering",
+      "type": "python",
+      "command": "python feature_engineering.py",
+      "dependencies": ["preprocess_data"],
+      "timeout": "1h",
+      "sla": "2h"
+    },
+    {
+      "id": "train_model",
+      "name": "Train ML Model",
+      "type": "python",
+      "command": "python train_model.py --epochs 100",
+      "dependencies": ["feature_engineering"],
+      "retries": 2,
+      "timeout": "4h",
+      "sla": "6h"
+    },
+    {
+      "id": "evaluate_model",
+      "name": "Evaluate Model Performance",
+      "type": "python",
+      "command": "python evaluate.py",
+      "dependencies": ["train_model"],
+      "timeout": "30m",
+      "sla": "1h"
+    },
+    {
+      "id": "register_model",
+      "name": "Register Model in Registry",
+      "type": "python",
+      "command": "python register_model.py",
+      "dependencies": ["evaluate_model"],
+      "timeout": "15m",
+      "sla": "30m"
+    },
+    {
+      "id": "deploy_staging",
+      "name": "Deploy to Staging",
+      "type": "bash",
+      "command": "kubectl apply -f k8s/staging/",
+      "dependencies": ["register_model"],
+      "retries": 3,
+      "timeout": "20m",
+      "sla": "45m"
+    },
+    {
+      "id": "integration_tests",
+      "name": "Run Integration Tests",
+      "type": "python",
+      "command": "pytest tests/integration/",
+      "dependencies": ["deploy_staging"],
+      "timeout": "30m",
+      "sla": "1h"
+    },
+    {
+      "id": "notify_team",
+      "name": "Notify Team",
+      "type": "http",
+      "command": "https://api.slack.com/webhook/training-complete",
+      "dependencies": ["integration_tests"],
+      "retries": 3,
+      "timeout": "5m",
+      "sla": "10m"
+    }
+  ]
+}
