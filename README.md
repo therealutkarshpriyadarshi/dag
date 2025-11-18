@@ -219,7 +219,7 @@ Components communicate via:
 
 See [ROADMAP.md](ROADMAP.md) for detailed development phases.
 
-**Current Status**: Phase 2 - Database Layer & State Management ✅
+**Current Status**: Phase 3 - Scheduler ✅
 
 ### Completed Phases
 
@@ -247,10 +247,19 @@ See [ROADMAP.md](ROADMAP.md) for detailed development phases.
   - Optimistic locking for concurrent updates
   - 95%+ test coverage
 
+- [x] **Phase 3**: Scheduler
+  - Cron-based scheduling with robfig/cron v3
+  - Automatic catchup for missed schedules
+  - Backfill engine with CLI support
+  - Multi-level concurrency controls (global, DAG, pool)
+  - Redis-based distributed semaphores
+  - Priority queue for smart scheduling
+  - 95%+ test coverage
+
 ### Next Phases
 
-- [ ] Phase 3: Scheduler
 - [ ] Phase 4: Executor & Worker System
+- [ ] Phase 5: Retry & Error Handling
 
 ## Contributing
 

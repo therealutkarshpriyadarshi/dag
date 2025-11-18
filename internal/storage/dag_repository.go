@@ -52,6 +52,11 @@ func (r *dagRepository) Get(ctx context.Context, id string) (*models.DAG, error)
 	return model.ToDAG(), nil
 }
 
+// GetByID is an alias for Get
+func (r *dagRepository) GetByID(ctx context.Context, id string) (*models.DAG, error) {
+	return r.Get(ctx, id)
+}
+
 func (r *dagRepository) GetByName(ctx context.Context, name string) (*models.DAG, error) {
 	var model DAGModel
 	if err := r.db.WithContext(ctx).Where("name = ?", name).First(&model).Error; err != nil {
@@ -64,26 +69,31 @@ func (r *dagRepository) GetByName(ctx context.Context, name string) (*models.DAG
 	return model.ToDAG(), nil
 }
 
-func (r *dagRepository) List(ctx context.Context, filters DAGFilters) ([]*models.DAG, error) {
+func (r *dagRepository) List(ctx context.Context, filters ...DAGFilters) ([]*models.DAG, error) {
 	query := r.db.WithContext(ctx).Model(&DAGModel{})
 
-	if filters.IsPaused != nil {
-		query = query.Where("is_paused = ?", *filters.IsPaused)
-	}
+	// Apply filters if provided
+	if len(filters) > 0 {
+		filter := filters[0]
 
-	if len(filters.Tags) > 0 {
-		// Query for DAGs that have any of the specified tags
-		for _, tag := range filters.Tags {
-			query = query.Where("tags @> ?", fmt.Sprintf("[\"%s\"]", tag))
+		if filter.IsPaused != nil {
+			query = query.Where("is_paused = ?", *filter.IsPaused)
 		}
-	}
 
-	if filters.Limit > 0 {
-		query = query.Limit(filters.Limit)
-	}
+		if len(filter.Tags) > 0 {
+			// Query for DAGs that have any of the specified tags
+			for _, tag := range filter.Tags {
+				query = query.Where("tags @> ?", fmt.Sprintf("[\"%s\"]", tag))
+			}
+		}
 
-	if filters.Offset > 0 {
-		query = query.Offset(filters.Offset)
+		if filter.Limit > 0 {
+			query = query.Limit(filter.Limit)
+		}
+
+		if filter.Offset > 0 {
+			query = query.Offset(filter.Offset)
+		}
 	}
 
 	var dagModels []DAGModel

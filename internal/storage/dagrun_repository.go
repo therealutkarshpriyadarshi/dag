@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/therealutkarshpriyadarshi/dag/internal/state"
@@ -47,9 +48,34 @@ func (r *dagRunRepository) Get(ctx context.Context, id string) (*models.DAGRun, 
 	var model DAGRunModel
 	if err := r.db.WithContext(ctx).Where("id = ?", runID).First(&model).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("DAG run not found: %s", id)
+			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get DAG run: %w", err)
+	}
+
+	return model.ToDAGRun(), nil
+}
+
+// GetByID is an alias for Get
+func (r *dagRunRepository) GetByID(ctx context.Context, id string) (*models.DAGRun, error) {
+	return r.Get(ctx, id)
+}
+
+// GetByExecutionDate retrieves a DAG run by DAG ID and execution date
+func (r *dagRunRepository) GetByExecutionDate(ctx context.Context, dagID string, executionDate time.Time) (*models.DAGRun, error) {
+	dagUUID, err := uuid.Parse(dagID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid DAG ID: %w", err)
+	}
+
+	var model DAGRunModel
+	if err := r.db.WithContext(ctx).
+		Where("dag_id = ? AND execution_date = ?", dagUUID, executionDate).
+		First(&model).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get DAG run by execution date: %w", err)
 	}
 
 	return model.ToDAGRun(), nil
