@@ -219,13 +219,27 @@ Components communicate via:
 
 See [ROADMAP.md](ROADMAP.md) for detailed development phases.
 
-**Current Status**: Phase 0 - Project Setup & Foundation ✅
+**Current Status**: Phase 1 - Core DAG Engine ✅
 
-- [x] Repository & tooling setup
-- [x] Development environment
-- [x] Docker Compose configuration
-- [x] CI/CD pipeline
-- [ ] Phase 1: Core DAG Engine (In Progress)
+### Completed Phases
+
+- [x] **Phase 0**: Project Setup & Foundation
+  - Repository & tooling setup
+  - Development environment
+  - Docker Compose configuration
+  - CI/CD pipeline
+
+- [x] **Phase 1**: Core DAG Engine
+  - DAG definition with builder pattern (Go DSL)
+  - YAML/JSON parser for DAG definitions
+  - Comprehensive DAG validation (cycles, orphaned tasks, dependencies)
+  - Graph algorithms (topological sort, parallel task detection)
+  - Critical path analysis for SLA estimation
+  - Task lineage tracking (upstream/downstream dependencies)
+  - 95.7% test coverage
+
+### Next Phases
+
 - [ ] Phase 2: Database Layer & State Management
 - [ ] Phase 3: Scheduler
 - [ ] Phase 4: Executor & Worker System

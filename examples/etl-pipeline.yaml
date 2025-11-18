@@ -1,0 +1,41 @@
+# Example ETL Pipeline DAG
+# This demonstrates a simple Extract-Transform-Load workflow
+
+id: etl-pipeline
+name: ETL Pipeline
+description: Daily ETL pipeline for analytics data processing
+schedule: "0 2 * * *"  # Run at 2 AM every day
+start_date: "2024-01-01"
+tags:
+  - production
+  - etl
+  - analytics
+
+tasks:
+  - id: extract
+    name: Extract Data
+    type: bash
+    command: python scripts/extract.py
+    retries: 3
+    timeout: 30m
+    sla: 1h
+
+  - id: transform
+    name: Transform Data
+    type: bash
+    command: python scripts/transform.py
+    dependencies:
+      - extract
+    retries: 2
+    timeout: 15m
+    sla: 30m
+
+  - id: load
+    name: Load Data
+    type: bash
+    command: python scripts/load.py
+    dependencies:
+      - transform
+    retries: 3
+    timeout: 20m
+    sla: 45m

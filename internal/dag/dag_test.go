@@ -158,3 +158,70 @@ func TestGetTopologicalOrder_WithCycle(t *testing.T) {
 		t.Error("Expected error for cyclic DAG, got nil")
 	}
 }
+
+func TestValidate_OrphanedTask(t *testing.T) {
+	validator := NewValidator()
+	dag := &models.DAG{
+		Name: "test-dag",
+		Tasks: []models.Task{
+			{ID: "task1", Name: "Task 1", Type: models.TaskTypeBash},
+			{ID: "task2", Name: "Task 2", Type: models.TaskTypeBash},
+		},
+	}
+
+	err := validator.Validate(dag)
+	if err == nil {
+		t.Error("Expected error for orphaned task, got nil")
+	}
+}
+
+func TestValidate_ConnectedDAG(t *testing.T) {
+	validator := NewValidator()
+	dag := &models.DAG{
+		Name: "test-dag",
+		Tasks: []models.Task{
+			{ID: "task1", Name: "Task 1", Type: models.TaskTypeBash},
+			{ID: "task2", Name: "Task 2", Type: models.TaskTypeBash, Dependencies: []string{"task1"}},
+			{ID: "task3", Name: "Task 3", Type: models.TaskTypeBash, Dependencies: []string{"task1"}},
+		},
+	}
+
+	err := validator.Validate(dag)
+	if err != nil {
+		t.Errorf("Expected no error for connected DAG, got: %v", err)
+	}
+}
+
+func TestValidate_SingleTask(t *testing.T) {
+	validator := NewValidator()
+	dag := &models.DAG{
+		Name: "test-dag",
+		Tasks: []models.Task{
+			{ID: "task1", Name: "Task 1", Type: models.TaskTypeBash},
+		},
+	}
+
+	err := validator.Validate(dag)
+	if err != nil {
+		t.Errorf("Expected no error for single task DAG, got: %v", err)
+	}
+}
+
+func TestValidate_ComplexConnectedDAG(t *testing.T) {
+	validator := NewValidator()
+	dag := &models.DAG{
+		Name: "test-dag",
+		Tasks: []models.Task{
+			{ID: "task1", Name: "Task 1", Type: models.TaskTypeBash},
+			{ID: "task2", Name: "Task 2", Type: models.TaskTypeBash, Dependencies: []string{"task1"}},
+			{ID: "task3", Name: "Task 3", Type: models.TaskTypeBash, Dependencies: []string{"task1"}},
+			{ID: "task4", Name: "Task 4", Type: models.TaskTypeBash, Dependencies: []string{"task2", "task3"}},
+		},
+		StartDate: time.Now(),
+	}
+
+	err := validator.Validate(dag)
+	if err != nil {
+		t.Errorf("Expected no error for complex connected DAG, got: %v", err)
+	}
+}

@@ -122,6 +122,146 @@ See [ROADMAP.md](ROADMAP.md) for complete development plan.
 
 ---
 
+## [0.2.0] - 2025-11-18
+
+### Phase 1: Core DAG Engine - COMPLETED ✅
+
+#### Added
+
+**DAG Definition & Parsing:**
+- **Go Builder Pattern (DSL)**: Fluent API for defining DAGs in Go code
+  - NewBuilder() for creating DAGs
+  - BashTask(), HTTPTask(), PythonTask(), GoTask() builders
+  - Chainable methods for task configuration (DependsOn, Retries, Timeout, SLA)
+  - Build() and MustBuild() for DAG construction
+
+- **YAML Parser**: Parse DAG definitions from YAML files
+  - Support for all task types and configurations
+  - Multiple date format support (RFC3339, date-only)
+  - Duration parsing (1h, 30m, 1h30m formats)
+  - Automatic validation after parsing
+
+- **JSON Parser**: Parse DAG definitions from JSON files
+  - Full feature parity with YAML parser
+  - Structured validation error messages
+
+**Enhanced Validation (internal/dag):**
+- **Orphaned Task Detection**: Identifies disconnected tasks in multi-task DAGs
+- **Comprehensive Error Messages**: Clear validation feedback
+- **All validations from Phase 0** plus new checks
+
+**Graph Algorithms (internal/dag/graph.go):**
+- **Graph Data Structure**: Efficient adjacency list representation
+  - Forward edges (task → dependents)
+  - Reverse edges (task → dependencies)
+  - Task metadata storage
+
+- **Parallel Task Detection**: Identifies tasks ready for concurrent execution
+  - GetParallelTasks() - finds tasks with all dependencies completed
+  - Dynamic execution planning
+
+- **Critical Path Analysis**: SLA estimation and bottleneck identification
+  - CalculateCriticalPath() - finds longest path through DAG
+  - Earliest and latest start time calculation
+  - Slack calculation for each task
+  - Critical task identification (zero slack)
+  - Total duration estimation
+
+- **Task Lineage Tracking**: Dependency analysis
+  - GetUpstreamTasks() - all transitive dependencies
+  - GetDownstreamTasks() - all transitive dependents
+  - GetImmediateDependencies() - direct dependencies
+  - GetImmediateDependents() - direct dependents
+
+- **Graph Utilities**:
+  - GetRootTasks() - tasks with no dependencies
+  - GetLeafTasks() - tasks with no dependents
+  - GetTaskCount() - total task count
+  - GetTask() - retrieve task by ID
+
+**Testing:**
+- **95.7% test coverage** in internal/dag package
+- **100% test coverage** in pkg/models package
+- Comprehensive test suites:
+  - builder_test.go - 15 test cases for builder pattern
+  - parser_test.go - 20 test cases for YAML/JSON parsing
+  - graph_test.go - 15 test cases for graph algorithms
+  - dag_test.go - enhanced with orphaned task tests
+- Edge case coverage:
+  - Linear DAGs
+  - Fan-out/fan-in patterns
+  - Complex dependency graphs
+  - Error conditions
+
+**Documentation:**
+- **Phase 1 DAG Engine Guide** (docs/PHASE_1_DAG_ENGINE.md):
+  - Complete API reference
+  - Usage examples for all features
+  - Code samples in Go, YAML, and JSON
+  - Common patterns and best practices
+  - Troubleshooting guide
+
+- **Example DAGs** (examples/):
+  - etl-pipeline.yaml - Simple linear ETL workflow
+  - data-processing.yaml - Complex fan-out/fan-in pattern
+  - ml-training.json - ML model training pipeline
+  - examples/README.md - Usage guide for examples
+
+**Code Quality:**
+- All code follows Go best practices
+- Comprehensive error handling
+- Clear documentation comments
+- Idiomatic Go patterns
+
+#### Technical Achievements
+
+- ✅ Multiple DAG definition methods (Go DSL, YAML, JSON)
+- ✅ Production-ready validation (cycles, orphaned tasks, dependencies)
+- ✅ Advanced graph algorithms (critical path, lineage tracking)
+- ✅ 95.7% test coverage exceeding >90% target
+- ✅ Type-safe Go API with builder pattern
+- ✅ Comprehensive documentation and examples
+
+#### API Highlights
+
+```go
+// Builder Pattern
+dag := dag.NewBuilder("my-dag").
+    Task("extract", dag.BashTask("extract.sh")).
+    Task("transform", dag.BashTask("transform.sh").DependsOn("extract")).
+    Build()
+
+// YAML/JSON Parsing
+parser := dag.NewParser()
+dag := parser.ParseYAMLFile("pipeline.yaml")
+
+// Graph Analysis
+graph := dag.NewGraph(dag)
+criticalPath := graph.CalculateCriticalPath()
+parallelTasks := graph.GetParallelTasks(completed)
+upstream := graph.GetUpstreamTasks("task-id")
+```
+
+#### Next Steps
+
+**Phase 2: Database Layer & State Management** (Week 4)
+- PostgreSQL schema design and migrations
+- Repository pattern implementation
+- State machine with atomic transitions
+- GORM integration
+- Connection pooling
+
+**Phase 3: Scheduler** (Weeks 5-6)
+- Cron-based scheduling
+- DAG run creation
+- Backfill support
+- Concurrency controls
+
+See [ROADMAP.md](ROADMAP.md) for complete development plan.
+
+---
+
 ## Version History
 
+- **0.2.0** (2025-11-18): Phase 1 Complete - Core DAG Engine
 - **0.1.0** (2025-11-18): Phase 0 Complete - Project Setup & Foundation

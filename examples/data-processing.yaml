@@ -1,0 +1,123 @@
+# Example Complex Data Processing Pipeline
+# This demonstrates a fan-out/fan-in pattern with multiple data sources
+
+id: data-processing-pipeline
+name: Data Processing Pipeline
+description: Multi-source data processing with parallel transformations
+schedule: "0 3 * * *"  # Run at 3 AM every day
+start_date: "2024-01-01"
+tags:
+  - production
+  - data-processing
+  - analytics
+
+tasks:
+  # Extract from multiple sources in parallel
+  - id: extract_database
+    name: Extract from Database
+    type: python
+    command: python extract_db.py
+    retries: 3
+    timeout: 1h
+    sla: 2h
+
+  - id: extract_api
+    name: Extract from API
+    type: http
+    command: https://api.example.com/data
+    retries: 5
+    timeout: 30m
+    sla: 1h
+
+  - id: extract_files
+    name: Extract from Files
+    type: bash
+    command: python extract_files.py
+    retries: 2
+    timeout: 45m
+    sla: 1h30m
+
+  # Merge all data sources
+  - id: merge_data
+    name: Merge Data Sources
+    type: python
+    command: python merge.py
+    dependencies:
+      - extract_database
+      - extract_api
+      - extract_files
+    timeout: 30m
+    sla: 1h
+
+  # Validate merged data
+  - id: validate
+    name: Validate Data Quality
+    type: python
+    command: python validate.py
+    dependencies:
+      - merge_data
+    timeout: 15m
+    sla: 30m
+
+  # Process in parallel
+  - id: transform_customer
+    name: Transform Customer Data
+    type: python
+    command: python transform_customer.py
+    dependencies:
+      - validate
+    timeout: 20m
+    sla: 45m
+
+  - id: transform_orders
+    name: Transform Order Data
+    type: python
+    command: python transform_orders.py
+    dependencies:
+      - validate
+    timeout: 25m
+    sla: 50m
+
+  - id: transform_products
+    name: Transform Product Data
+    type: python
+    command: python transform_products.py
+    dependencies:
+      - validate
+    timeout: 15m
+    sla: 30m
+
+  # Load to different destinations
+  - id: load_warehouse
+    name: Load to Data Warehouse
+    type: python
+    command: python load_warehouse.py
+    dependencies:
+      - transform_customer
+      - transform_orders
+      - transform_products
+    timeout: 1h
+    sla: 2h
+
+  - id: update_cache
+    name: Update Redis Cache
+    type: python
+    command: python update_cache.py
+    dependencies:
+      - transform_customer
+      - transform_orders
+      - transform_products
+    timeout: 10m
+    sla: 20m
+
+  # Send notification
+  - id: notify
+    name: Send Completion Notification
+    type: http
+    command: https://api.example.com/notify
+    dependencies:
+      - load_warehouse
+      - update_cache
+    retries: 3
+    timeout: 5m
+    sla: 10m
