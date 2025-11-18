@@ -11,8 +11,9 @@ import (
 type DAGRepository interface {
 	Create(ctx context.Context, dag *models.DAG) error
 	Get(ctx context.Context, id string) (*models.DAG, error)
+	GetByID(ctx context.Context, id string) (*models.DAG, error) // Alias for Get
 	GetByName(ctx context.Context, name string) (*models.DAG, error)
-	List(ctx context.Context, filters DAGFilters) ([]*models.DAG, error)
+	List(ctx context.Context, filters ...DAGFilters) ([]*models.DAG, error)
 	Update(ctx context.Context, dag *models.DAG) error
 	Delete(ctx context.Context, id string) error
 	Pause(ctx context.Context, id string) error
@@ -31,6 +32,8 @@ type DAGFilters struct {
 type DAGRunRepository interface {
 	Create(ctx context.Context, run *models.DAGRun) error
 	Get(ctx context.Context, id string) (*models.DAGRun, error)
+	GetByID(ctx context.Context, id string) (*models.DAGRun, error) // Alias for Get
+	GetByExecutionDate(ctx context.Context, dagID string, executionDate time.Time) (*models.DAGRun, error)
 	List(ctx context.Context, filters DAGRunFilters) ([]*models.DAGRun, error)
 	Update(ctx context.Context, run *models.DAGRun) error
 	UpdateState(ctx context.Context, id string, oldState, newState models.State) error
